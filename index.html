@@ -252,6 +252,7 @@ input[type=checkbox] { width: auto; cursor: pointer; }
     </select>
     <div class="spacer"></div>
     <span style="font-size:11px;color:var(--text3)" id="school-count"></span>
+    <button class="btn" onclick="openRankingImport()" title="貼入排名 JSON 批次更新">↻ 更新排名</button>
     <button class="btn primary" onclick="openSchoolModal()">+ 新增學校</button>
   </div>
   <div class="info-banner">
@@ -383,7 +384,7 @@ input[type=checkbox] { width: auto; cursor: pointer; }
 <!-- ═══════════════════════ TIMELINE ═══════════════════════ -->
 <div id="tab-timeline" class="section">
   <div class="page-title">時程規劃</div>
-  <div class="page-sub">點擊狀態標籤切換進度，按日期排序顯示</div>
+  <div class="page-sub">每個事項可設定開始日與結束日，甘特圖視圖顯示全局時間軸</div>
   <div class="toolbar">
     <select class="filter-sel" id="tl-filter" onchange="renderTimeline()">
       <option value="">全部類別</option>
@@ -393,10 +394,15 @@ input[type=checkbox] { width: auto; cursor: pointer; }
       <option value="套詞">套詞聯絡</option>
       <option value="其他">其他</option>
     </select>
+    <div style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--radius-sm);padding:3px;border:0.5px solid var(--border)">
+      <button id="view-list-btn" class="btn sm" onclick="setTlView('list')" style="border:none;background:var(--bg2);font-weight:500">列表</button>
+      <button id="view-gantt-btn" class="btn sm" onclick="setTlView('gantt')" style="border:none;background:transparent;color:var(--text2)">甘特圖</button>
+    </div>
     <div class="spacer"></div>
     <button class="btn primary" onclick="openEventModal()">+ 新增事項</button>
   </div>
   <div id="timeline-list"></div>
+  <div id="gantt-view" style="display:none"></div>
 </div>
 
 </div><!-- /content -->
@@ -476,8 +482,7 @@ input[type=checkbox] { width: auto; cursor: pointer; }
     </div>
     <div class="modal-body">
       <div class="form-grid col2">
-        <div class="form-row"><label class="form-label">事項名稱 *</label><input type="text" id="e-title"></div>
-        <div class="form-row"><label class="form-label">日期</label><input type="date" id="e-date"></div>
+        <div class="form-row" style="grid-column:1/-1"><label class="form-label">事項名稱 *</label><input type="text" id="e-title"></div>
         <div class="form-row"><label class="form-label">類別</label>
           <select id="e-cat">
             <option value="考試">考試備考</option><option value="文件">文件準備</option>
@@ -489,12 +494,40 @@ input[type=checkbox] { width: auto; cursor: pointer; }
             <option value="upcoming">未開始</option><option value="pending">進行中</option><option value="done">已完成</option>
           </select>
         </div>
+        <div class="form-row"><label class="form-label">開始日期</label><input type="date" id="e-date-start"></div>
+        <div class="form-row"><label class="form-label">結束日期（截止日）</label><input type="date" id="e-date-end"></div>
       </div>
       <div class="form-row"><label class="form-label">備註</label><textarea id="e-note"></textarea></div>
     </div>
     <div class="modal-foot">
       <button class="btn" onclick="closeModal('modal-event')">取消</button>
       <button class="btn primary" onclick="saveEvent()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RANKING IMPORT MODAL ═══ -->
+<div id="modal-ranking" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>↻ 更新排名資料</h3>
+      <button class="close-btn" onclick="closeModal('modal-ranking')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-banner" style="margin-bottom:12px">
+        📌 使用方式：每年排名更新後，請 Claude 產生最新排名 JSON，貼入下方後點「套用」即可批次更新所有學校排名。<br>
+        格式：<code style="font-size:11px;background:var(--bg3);padding:1px 4px;border-radius:3px">{"MIT":{"qs_overall":1,"qs_chem":1,"qs_mat":1},"Oxford":{"qs_overall":4}}</code>
+      </div>
+      <div class="form-row">
+        <label class="form-label">排名 JSON（key 為學校英文名稱關鍵字）</label>
+        <textarea id="ranking-json" style="min-height:180px;font-family:'DM Mono',monospace;font-size:12px" placeholder='{"MIT":{"qs_overall":1,"qs_chem":1,"qs_mat":1,"us_overall":2},"Imperial College London":{"qs_overall":2},...}'></textarea>
+      </div>
+      <div id="ranking-result" style="font-size:12px;color:var(--accent);margin-top:8px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('modal-ranking')">取消</button>
+      <button class="btn" onclick="previewRanking()">預覽</button>
+      <button class="btn primary" onclick="applyRanking()">套用更新</button>
     </div>
   </div>
 </div>
@@ -538,15 +571,17 @@ const DEFAULT_SCHOOLS = [
   {id:30,name_zh:'德州農工大學',name_en:'Texas A&M',country:'美國 College Station',qs_overall:'-',qs_chem:'-',qs_mat:'-',us_overall:70,tier:'',note:''},
 ];
 const DEFAULT_EVENTS = [
-  {id:1,title:'IELTS 備考',date:'2025-06-30',cat:'考試',status:'pending',note:'目標 7.5+'},
-  {id:2,title:'GRE 備考',date:'2025-07-31',cat:'考試',status:'upcoming',note:''},
-  {id:3,title:'研究計畫草稿',date:'2025-08-31',cat:'文件',status:'upcoming',note:''},
-  {id:4,title:'CV / Resume 定稿',date:'2025-09-15',cat:'文件',status:'upcoming',note:''},
-  {id:5,title:'套詞 Email 開始',date:'2025-09-01',cat:'套詞',status:'upcoming',note:''},
-  {id:6,title:'SOP 定稿',date:'2025-10-31',cat:'文件',status:'upcoming',note:''},
-  {id:7,title:'推薦信確認',date:'2025-11-01',cat:'文件',status:'upcoming',note:''},
-  {id:8,title:'第一波申請截止（早申）',date:'2025-12-01',cat:'申請',status:'upcoming',note:''},
-  {id:9,title:'第二波申請截止',date:'2026-01-15',cat:'申請',status:'upcoming',note:''},
+  {id:1,title:'IELTS 備考',dateStart:'2025-04-01',dateEnd:'2025-08-15',cat:'考試',status:'pending',note:'目標 7.5+'},
+  {id:2,title:'IELTS 應考',dateStart:'2025-08-15',dateEnd:'2025-08-15',cat:'考試',status:'upcoming',note:''},
+  {id:3,title:'GRE 備考',dateStart:'2025-05-01',dateEnd:'2025-07-31',cat:'考試',status:'upcoming',note:''},
+  {id:4,title:'GRE 應考',dateStart:'2025-07-31',dateEnd:'2025-07-31',cat:'考試',status:'upcoming',note:''},
+  {id:5,title:'研究計畫草稿',dateStart:'2025-08-01',dateEnd:'2025-08-31',cat:'文件',status:'upcoming',note:''},
+  {id:6,title:'CV / Resume 定稿',dateStart:'2025-09-01',dateEnd:'2025-09-15',cat:'文件',status:'upcoming',note:''},
+  {id:7,title:'套詞 Email',dateStart:'2025-09-01',dateEnd:'2025-10-31',cat:'套詞',status:'upcoming',note:''},
+  {id:8,title:'SOP 撰寫',dateStart:'2025-09-15',dateEnd:'2025-10-31',cat:'文件',status:'upcoming',note:''},
+  {id:9,title:'推薦信確認',dateStart:'2025-10-15',dateEnd:'2025-11-01',cat:'文件',status:'upcoming',note:''},
+  {id:10,title:'第一波申請截止',dateStart:'2025-12-01',dateEnd:'2025-12-01',cat:'申請',status:'upcoming',note:''},
+  {id:11,title:'第二波申請截止',dateStart:'2026-01-15',dateEnd:'2026-01-15',cat:'申請',status:'upcoming',note:''},
 ];
 const DEFAULT_LIVING = [
   {city:'Boston, MA',monthly:2500},{city:'London, UK',monthly:2800},
@@ -606,7 +641,7 @@ function showTab(t) {
   document.getElementById('tab-'+t).classList.add('active');
   event.currentTarget.classList.add('active');
   if(t==='finance') renderFinance();
-  if(t==='timeline') renderTimeline();
+  if(t==='timeline'){document.getElementById('timeline-list').style.display='block';document.getElementById('gantt-view').style.display='none';tlView='list';document.getElementById('view-list-btn').style.background='var(--bg2)';document.getElementById('view-list-btn').style.color='var(--text)';document.getElementById('view-gantt-btn').style.background='transparent';document.getElementById('view-gantt-btn').style.color='var(--text2)';renderTimeline();}
 }
 
 // ─── Helpers ───────────────────────────────────────────────────
@@ -798,23 +833,59 @@ const EV_ST=['upcoming','pending','done'];
 const EV_ST_LABEL={upcoming:'未開始',pending:'進行中',done:'已完成'};
 const EV_ST_DOT={upcoming:'tl-upcoming',pending:'tl-pending',done:'tl-done'};
 const CAT_CLS={考試:'cat-exam',文件:'cat-doc',申請:'cat-apply',套詞:'cat-email',其他:'cat-other'};
+const CAT_COLOR={考試:'#7F77DD',文件:'#378ADD',申請:'#1D9E75',套詞:'#EF9F27',其他:'#888780'};
+let tlView='list';
+function setTlView(v){
+  tlView=v;
+  document.getElementById('view-list-btn').style.background=v==='list'?'var(--bg2)':'transparent';
+  document.getElementById('view-list-btn').style.color=v==='list'?'var(--text)':'var(--text2)';
+  document.getElementById('view-gantt-btn').style.background=v==='gantt'?'var(--bg2)':'transparent';
+  document.getElementById('view-gantt-btn').style.color=v==='gantt'?'var(--text)':'var(--text2)';
+  document.getElementById('timeline-list').style.display=v==='list'?'block':'none';
+  document.getElementById('gantt-view').style.display=v==='gantt'?'block':'none';
+  if(v==='gantt') renderGantt(); else renderTimeline();
+}
+function getDateRange(e){
+  const s=e.dateStart||e.date||'';
+  const end=e.dateEnd||e.date||s;
+  return {start:s, end:end};
+}
 function renderTimeline(){
   const filter=(document.getElementById('tl-filter')||{value:''}).value;
-  let list=[...events].filter(e=>!filter||e.cat===filter).sort((a,b)=>a.date<b.date?-1:1);
+  let list=[...events].filter(e=>!filter||e.cat===filter).sort((a,b)=>{
+    const as=(a.dateStart||a.date||''); const bs=(b.dateStart||b.date||'');
+    return as<bs?-1:as>bs?1:0;
+  });
   const el=document.getElementById('timeline-list'); el.innerHTML='';
   if(!list.length){el.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3)">尚無事項，點擊「＋ 新增事項」開始</div>';return;}
+  const today=new Date(); today.setHours(0,0,0,0);
   list.forEach(e=>{
+    const {start,end}=getDateRange(e);
+    const endDate=end?new Date(end):null;
+    const daysLeft=endDate?Math.ceil((endDate-today)/86400000):null;
+    const isSameDay=start===end||!end||end===start;
+    let dateHtml='';
+    if(isSameDay){
+      dateHtml=`<span style="font-family:'DM Mono',monospace;font-size:11px">${start||'—'}</span>`;
+    } else {
+      dateHtml=`<span style="font-family:'DM Mono',monospace;font-size:11px">${start} <span style="color:var(--text3)">→</span> ${end}</span>`;
+    }
+    let countdownHtml='';
+    if(daysLeft!==null && e.status!=='done'){
+      const cls=daysLeft<0?'dl-urgent':daysLeft<30?'dl-urgent':daysLeft<60?'dl-warn':'dl-ok';
+      countdownHtml=`<span class="${cls}" style="font-size:10px;margin-left:6px">${daysLeft<0?'已過期':daysLeft===0?'今天截止':'剩 '+daysLeft+' 天'}</span>`;
+    }
     const div=document.createElement('div'); div.className='tl-item';
     const stLabel=EV_ST_LABEL[e.status]||'未開始';
     const stDot=EV_ST_DOT[e.status]||'tl-upcoming';
     div.innerHTML=`
-      <div class="tl-dot ${stDot}"></div>
+      <div class="tl-dot ${stDot}" style="margin-top:6px"></div>
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="tl-title">${e.title}</span>
           <span class="cat-pill ${CAT_CLS[e.cat]||'cat-other'}">${e.cat}</span>
         </div>
-        <div class="tl-meta">${e.date||''}${e.note?' — '+e.note:''}</div>
+        <div class="tl-meta" style="margin-top:3px">${dateHtml}${countdownHtml}${e.note?' — '+e.note:''}</div>
       </div>
       <div class="tl-actions">
         <span class="status ${e.status==='done'?'s-replied':e.status==='pending'?'s-contacted':'s-none'}" onclick="cycleEvent(${e.id})" style="font-size:10px">${stLabel}</span>
@@ -823,15 +894,102 @@ function renderTimeline(){
     el.appendChild(div);
   });
 }
+function renderGantt(){
+  const filter=(document.getElementById('tl-filter')||{value:''}).value;
+  let list=[...events].filter(e=>!filter||e.cat===filter);
+  const el=document.getElementById('gantt-view'); el.innerHTML='';
+  if(!list.length){el.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3)">尚無事項</div>';return;}
+  // Find date range across all events
+  let minDate=null,maxDate=null;
+  list.forEach(e=>{
+    const {start,end}=getDateRange(e);
+    if(start){const d=new Date(start);if(!minDate||d<minDate)minDate=d;}
+    if(end){const d=new Date(end);if(!maxDate||d>maxDate)maxDate=d;}
+  });
+  if(!minDate||!maxDate){el.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3)">請先設定事項的開始／結束日期</div>';return;}
+  // Expand range by padding
+  minDate=new Date(minDate); minDate.setDate(minDate.getDate()-7);
+  maxDate=new Date(maxDate); maxDate.setDate(maxDate.getDate()+7);
+  const totalDays=Math.ceil((maxDate-minDate)/86400000);
+  const today=new Date(); today.setHours(0,0,0,0);
+  // Build month headers
+  let months=[]; let cur=new Date(minDate);
+  while(cur<=maxDate){
+    const label=cur.getFullYear()+'/'+(cur.getMonth()+1);
+    const startOffset=Math.max(0,Math.ceil((new Date(cur.getFullYear(),cur.getMonth(),1)-minDate)/86400000));
+    const daysInMonth=new Date(cur.getFullYear(),cur.getMonth()+1,0).getDate();
+    const endOffset=Math.min(totalDays,startOffset+daysInMonth);
+    months.push({label,pct:((startOffset/totalDays)*100).toFixed(2),width:(((endOffset-startOffset)/totalDays)*100).toFixed(2)});
+    cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);
+  }
+  // Today marker
+  const todayPct=((today-minDate)/86400000/totalDays*100).toFixed(2);
+  const LABEL_W=160;
+  let html=`<div style="background:var(--bg2);border-radius:var(--radius);border:0.5px solid var(--border);overflow:hidden">`;
+  // Month header row
+  html+=`<div style="display:flex;border-bottom:0.5px solid var(--border)">`;
+  html+=`<div style="width:${LABEL_W}px;flex-shrink:0;padding:8px 12px;font-size:11px;font-weight:600;color:var(--text2);background:var(--bg3)">事項</div>`;
+  html+=`<div style="flex:1;position:relative;height:32px;background:var(--bg3)">`;
+  months.forEach(m=>{
+    html+=`<div style="position:absolute;left:${m.pct}%;width:${m.width}%;height:100%;display:flex;align-items:center;padding:0 6px;font-size:10px;color:var(--text3);font-weight:500;border-left:0.5px solid var(--border);overflow:hidden;white-space:nowrap">${m.label}</div>`;
+  });
+  // Today line in header
+  if(todayPct>=0&&todayPct<=100){
+    html+=`<div style="position:absolute;left:${todayPct}%;top:0;height:100%;width:1px;background:var(--red);opacity:0.6;z-index:2"></div>`;
+  }
+  html+=`</div></div>`;
+  // Sort by start date
+  list.sort((a,b)=>{
+    const as=(a.dateStart||a.date||''); const bs=(b.dateStart||b.date||'');
+    return as<bs?-1:as>bs?1:0;
+  });
+  // Event rows
+  list.forEach((e,i)=>{
+    const {start,end}=getDateRange(e);
+    if(!start)return;
+    const startD=new Date(start); const endD=new Date(end||start);
+    const leftPct=((startD-minDate)/86400000/totalDays*100).toFixed(2);
+    const widthPct=Math.max(0.5,((endD-startD)/86400000/totalDays*100)).toFixed(2);
+    const color=CAT_COLOR[e.cat]||'#888780';
+    const opacity=e.status==='done'?0.45:1;
+    const isMilestone=(start===end);
+    const rowBg=i%2===0?'var(--bg2)':'var(--bg3)';
+    html+=`<div style="display:flex;border-bottom:0.5px solid var(--border);min-height:36px;background:${rowBg}">`;
+    html+=`<div style="width:${LABEL_W}px;flex-shrink:0;padding:0 12px;display:flex;align-items:center;gap:6px;border-right:0.5px solid var(--border)">`;
+    html+=`<span class="cat-pill ${CAT_CLS[e.cat]||'cat-other'}" style="flex-shrink:0">${e.cat.slice(0,1)}</span>`;
+    html+=`<span style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.title}</span></div>`;
+    html+=`<div style="flex:1;position:relative">`;
+    // Today line
+    if(todayPct>=0&&todayPct<=100){
+      html+=`<div style="position:absolute;left:${todayPct}%;top:0;height:100%;width:1px;background:var(--red);opacity:0.25;z-index:1"></div>`;
+    }
+    if(isMilestone){
+      // Diamond milestone marker
+      html+=`<div title="${e.title}" style="position:absolute;left:calc(${leftPct}% - 6px);top:50%;transform:translateY(-50%) rotate(45deg);width:10px;height:10px;background:${color};opacity:${opacity};z-index:2;border-radius:2px"></div>`;
+    } else {
+      html+=`<div title="${e.title}: ${start} → ${end}" style="position:absolute;left:${leftPct}%;width:${widthPct}%;top:50%;transform:translateY(-50%);height:18px;background:${color};opacity:${opacity};border-radius:4px;z-index:2;cursor:default"></div>`;
+    }
+    html+=`</div></div>`;
+  });
+  html+=`</div>`;
+  // Legend
+  html+=`<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:11px;color:var(--text2)">`;
+  Object.entries(CAT_COLOR).forEach(([k,v])=>{
+    html+=`<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:${v};display:inline-block"></span>${k}</span>`;
+  });
+  html+=`<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;transform:rotate(45deg);background:var(--text2);display:inline-block;border-radius:2px;opacity:0.6"></span>單日里程碑</span>`;
+  html+=`<span style="display:flex;align-items:center;gap:5px"><span style="width:1px;height:12px;background:var(--red);display:inline-block"></span>今天</span>`;
+  html+=`</div>`;
+  el.innerHTML=html;
+}
 function cycleEvent(id){
   const e=events.find(x=>x.id===id);if(!e)return;
   const i=EV_ST.indexOf(e.status); e.status=EV_ST[(i+1)%3];
   save();renderTimeline();
 }
-function delEvent(id){events=events.filter(e=>e.id!==id);save();renderTimeline();}
+function delEvent(id){events=events.filter(e=>e.id!==id);save();if(tlView==='gantt')renderGantt();else renderTimeline();}
 function openEventModal(){
-  ['e-title','e-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('e-date').value='';
+  ['e-title','e-note','e-date-start','e-date-end'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('e-cat').value='考試';
   document.getElementById('e-status').value='upcoming';
   document.getElementById('modal-event').classList.add('open');
@@ -839,11 +997,61 @@ function openEventModal(){
 function saveEvent(){
   const title=document.getElementById('e-title').value.trim();
   if(!title){alert('請輸入事項名稱');return;}
-  events.push({id:Date.now(),title,date:document.getElementById('e-date').value,cat:document.getElementById('e-cat').value,status:document.getElementById('e-status').value,note:document.getElementById('e-note').value.trim()});
-  save();closeModal('modal-event');renderTimeline();
+  const ds=document.getElementById('e-date-start').value;
+  const de=document.getElementById('e-date-end').value;
+  events.push({id:Date.now(),title,dateStart:ds,dateEnd:de||ds,cat:document.getElementById('e-cat').value,status:document.getElementById('e-status').value,note:document.getElementById('e-note').value.trim()});
+  save();closeModal('modal-event');if(tlView==='gantt')renderGantt();else renderTimeline();
 }
 
 // ─── Modal helpers ─────────────────────────────────────────────
+function openRankingImport(){
+  document.getElementById('ranking-json').value='';
+  document.getElementById('ranking-result').textContent='';
+  document.getElementById('modal-ranking').classList.add('open');
+}
+function parseRankingJson(){
+  try{
+    const raw=document.getElementById('ranking-json').value.trim();
+    return JSON.parse(raw);
+  }catch(e){return null;}
+}
+function matchSchool(school, key){
+  const sn=(school.name_en||'').toLowerCase();
+  const sz=(school.name_zh||'').toLowerCase();
+  const k=key.toLowerCase();
+  return sn.includes(k)||k.includes(sn.split(' ')[0])||sz.includes(k)||k.includes(sz);
+}
+function previewRanking(){
+  const data=parseRankingJson();
+  const res=document.getElementById('ranking-result');
+  if(!data){res.style.color='var(--red)';res.textContent='❌ JSON 格式錯誤，請檢查語法';return;}
+  let matched=0,unmatched=[];
+  Object.keys(data).forEach(key=>{
+    const s=schools.find(sc=>matchSchool(sc,key));
+    if(s)matched++;else unmatched.push(key);
+  });
+  res.style.color='var(--accent)';
+  res.textContent=`✅ 可匹配 ${matched} 所學校${unmatched.length?'　⚠️ 未匹配：'+unmatched.join('、'):''}`;
+}
+function applyRanking(){
+  const data=parseRankingJson();
+  const res=document.getElementById('ranking-result');
+  if(!data){res.style.color='var(--red)';res.textContent='❌ JSON 格式錯誤';return;}
+  let updated=0;
+  Object.entries(data).forEach(([key,vals])=>{
+    const s=schools.find(sc=>matchSchool(sc,key));
+    if(s){
+      ['qs_overall','qs_chem','qs_mat','us_overall'].forEach(f=>{
+        if(vals[f]!==undefined)s[f]=vals[f];
+      });
+      updated++;
+    }
+  });
+  save();renderSchools();
+  res.style.color='var(--accent)';
+  res.textContent=`✅ 已更新 ${updated} 所學校的排名資料！`;
+  setTimeout(()=>closeModal('modal-ranking'),1500);
+}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-overlay').forEach(m=>{
   m.addEventListener('click',e=>{if(e.target===m) m.classList.remove('open');});
