@@ -1019,7 +1019,23 @@ function matchSchool(school, key){
   const sn=(school.name_en||'').toLowerCase();
   const sz=(school.name_zh||'').toLowerCase();
   const k=key.toLowerCase();
-  return sn.includes(k)||k.includes(sn.split(' ')[0])||sz.includes(k)||k.includes(sz);
+  // exact match
+  if(sn===k||sz===k) return true;
+  // one contains the other
+  if(sn.includes(k)||k.includes(sn)) return true;
+  if(sz.includes(k)||k.includes(sz)) return true;
+  // extract abbreviation from parentheses e.g. "MIT" from "(MIT)"
+  const abbr=(k.match(/\(([^)]+)\)/)||[])[1];
+  if(abbr && sn.includes(abbr.toLowerCase())) return true;
+  // key contains abbreviation that matches school short name
+  const snAbbr=(sn.match(/\(([^)]+)\)/)||[])[1];
+  if(snAbbr && k.includes(snAbbr.toLowerCase())) return true;
+  // word-level: all words of shorter string appear in longer
+  const kWords=k.replace(/[^a-z0-9 ]/g,' ').split(' ').filter(w=>w.length>2);
+  const snWords=sn.replace(/[^a-z0-9 ]/g,' ').split(' ').filter(w=>w.length>2);
+  if(kWords.length>0 && kWords.every(w=>sn.includes(w))) return true;
+  if(snWords.length>0 && snWords.every(w=>k.includes(w))) return true;
+  return false;
 }
 function previewRanking(){
   const data=parseRankingJson();
