@@ -282,30 +282,31 @@ input[type=checkbox] { width: auto; cursor: pointer; }
 <!-- ═══════════════════════ PROGRAMS ═══════════════════════ -->
 <div id="tab-programs" class="section">
   <div class="page-title">申請追蹤</div>
-  <div class="page-sub">點擊套詞／回信／面試狀態可循環切換，儲存格直接點擊編輯</div>
+  <div class="page-sub">點擊「編輯」修改資料，點擊狀態標籤切換進度</div>
   <div class="toolbar">
     <input type="text" class="search-input" id="prog-search" placeholder="搜尋學校或學程…" oninput="renderPrograms()">
     <div class="spacer"></div>
-    <button class="btn primary" onclick="openProgModal()">+ 新增申請項目</button>
+    <button class="btn primary" onclick="openProgModal(-1)">+ 新增申請項目</button>
   </div>
   <div class="tbl-wrap">
-    <table id="prog-table">
+    <table id="prog-table" style="table-layout:fixed;width:100%">
       <thead>
         <tr>
-          <th>學校／學程</th>
-          <th>申請連結</th>
-          <th>IELTS</th>
-          <th>TOEFL</th>
-          <th>GRE</th>
-          <th>Deadline</th>
-          <th>Funding</th>
-          <th>潛在導師</th>
-          <th>套詞</th>
-          <th>回信</th>
-          <th>面試</th>
-          <th>志願</th>
-          <th>備註</th>
-          <th></th>
+          <th style="width:130px">學校／學程</th>
+          <th style="width:60px">連結</th>
+          <th style="width:55px">IELTS</th>
+          <th style="width:55px">TOEFL</th>
+          <th style="width:50px">GRE</th>
+          <th style="width:90px">Deadline</th>
+          <th style="width:80px">獎學金</th>
+          <th style="width:110px">套詞</th>
+          <th style="width:110px">回信</th>
+          <th style="width:110px">面試</th>
+          <th style="width:80px">結果</th>
+          <th style="width:60px">志願</th>
+          <th style="width:90px">潛在導師</th>
+          <th style="width:70px">備註</th>
+          <th style="width:60px"></th>
         </tr>
       </thead>
       <tbody id="prog-tbody"></tbody>
@@ -440,17 +441,29 @@ input[type=checkbox] { width: auto; cursor: pointer; }
 
 <!-- ═══ PROGRAM MODAL ═══ -->
 <div id="modal-program" class="modal-overlay">
-  <div class="modal">
+  <div class="modal" style="max-width:680px">
     <div class="modal-head">
-      <h3>新增申請項目</h3>
+      <h3 id="prog-modal-title">新增申請項目</h3>
       <button class="close-btn" onclick="closeModal('modal-program')">×</button>
     </div>
     <div class="modal-body">
-      <div class="form-grid col2">
-        <div class="form-row"><label class="form-label">學校名稱 *</label><input type="text" id="p-school"></div>
-        <div class="form-row"><label class="form-label">Program 名稱</label><input type="text" id="p-prog"></div>
+      <!-- School search -->
+      <div class="form-row">
+        <label class="form-label">學校名稱 * （輸入關鍵字從選校清單搜尋）</label>
+        <input type="text" id="p-school" placeholder="輸入關鍵字…" oninput="schoolSuggest(this.value)" autocomplete="off">
+        <div id="school-suggest" style="display:none;position:absolute;background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius-sm);z-index:50;max-height:180px;overflow-y:auto;width:320px;box-shadow:0 4px 16px rgba(0,0,0,0.12)"></div>
       </div>
-      <div class="form-row"><label class="form-label">申請連結</label><input type="url" id="p-url" placeholder="https://..."></div>
+      <div class="form-grid col2">
+        <div class="form-row"><label class="form-label">Program 名稱</label><input type="text" id="p-prog"></div>
+        <div class="form-row"><label class="form-label">志願</label>
+          <select id="p-tier"><option value="">未設定</option><option value="夢幻">🌟 夢幻</option><option value="匹配">✅ 匹配</option><option value="保底">🛡 保底</option></select>
+        </div>
+      </div>
+      <!-- URL -->
+      <div class="form-row">
+        <label class="form-label">申請連結</label>
+        <input type="url" id="p-url" placeholder="https://...">
+      </div>
       <div class="form-grid col3">
         <div class="form-row"><label class="form-label">IELTS 要求</label><input type="text" id="p-ielts" placeholder="e.g. 7.0"></div>
         <div class="form-row"><label class="form-label">TOEFL 要求</label><input type="text" id="p-toefl" placeholder="e.g. 100"></div>
@@ -458,13 +471,67 @@ input[type=checkbox] { width: auto; cursor: pointer; }
       </div>
       <div class="form-grid col2">
         <div class="form-row"><label class="form-label">申請 Deadline</label><input type="date" id="p-deadline"></div>
-        <div class="form-row"><label class="form-label">志願</label>
-          <select id="p-tier"><option value="">未設定</option><option value="夢幻">🌟 夢幻</option><option value="匹配">✅ 匹配</option><option value="保底">🛡 保底</option></select>
+        <div class="form-row"><label class="form-label">獎學金</label>
+          <select id="p-scholarship">
+            <option value="">未設定</option>
+            <option value="全獎">💰 全獎</option>
+            <option value="半獎">🏅 半獎</option>
+            <option value="提供TA/RA">📚 提供TA/RA</option>
+            <option value="需另外申請">📝 需另外申請獎學金</option>
+            <option value="其他">其他</option>
+          </select>
         </div>
       </div>
-      <div class="form-row"><label class="form-label">Funding 資訊</label><textarea id="p-funding" placeholder="e.g. Full funding / TA+RA available / Self-funded"></textarea></div>
-      <div class="form-row"><label class="form-label">潛在導師（每行一位）</label><textarea id="p-prof" placeholder="Prof. A — 研究方向：奈米材料&#10;Prof. B — 研究方向：電化學"></textarea></div>
       <div class="form-row"><label class="form-label">備註</label><textarea id="p-note"></textarea></div>
+      <!-- Professors section -->
+      <div style="margin-top:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label class="form-label" style="margin:0">潛在導師</label>
+          <button class="btn sm" onclick="addProfRow()">+ 新增導師</button>
+        </div>
+        <div id="prof-rows"></div>
+      </div>
+      <!-- Contact status -->
+      <div style="margin-top:16px;padding-top:12px;border-top:0.5px solid var(--border)">
+        <label class="form-label" style="margin-bottom:8px">申請進度</label>
+        <div class="form-grid col2">
+          <div class="form-row">
+            <label class="form-label">套詞狀態</label>
+            <select id="p-contact">
+              <option value="未套詞">未套詞</option>
+              <option value="第一次套詞">第一次套詞</option>
+              <option value="第二次套詞">第二次套詞</option>
+            </select>
+          </div>
+          <div class="form-row"><label class="form-label">套詞日期</label><input type="date" id="p-contact-date"></div>
+          <div class="form-row">
+            <label class="form-label">回信狀態</label>
+            <select id="p-reply">
+              <option value="未回信">未回信</option>
+              <option value="第一次套詞已回信">第一次套詞已回信</option>
+              <option value="第二次套詞已回信">第二次套詞已回信</option>
+            </select>
+          </div>
+          <div class="form-row"><label class="form-label">回信日期</label><input type="date" id="p-reply-date"></div>
+          <div class="form-row">
+            <label class="form-label">面試狀態</label>
+            <select id="p-interview">
+              <option value="未面試">未面試</option>
+              <option value="已預約面試">已預約面試</option>
+              <option value="已面試">已面試</option>
+            </select>
+          </div>
+          <div class="form-row"><label class="form-label">面試日期</label><input type="date" id="p-interview-date"></div>
+          <div class="form-row">
+            <label class="form-label">申請結果</label>
+            <select id="p-result">
+              <option value="pending">Pending</option>
+              <option value="accept">Accept 🎉</option>
+              <option value="reject">Reject</option>
+            </select>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn" onclick="closeModal('modal-program')">取消</button>
@@ -754,57 +821,170 @@ function saveSchool(){
 }
 
 // ─── Programs ──────────────────────────────────────────────────
-const ST_KEYS=['none','contacted','replied','interview','offer','rejected'];
-const ST_LABELS={none:'未開始',contacted:'已套詞',replied:'已回信',interview:'已面試',offer:'錄取',rejected:'未錄取'};
-const ST_CLS={none:'s-none',contacted:'s-contacted',replied:'s-replied',interview:'s-interview',offer:'s-offer',rejected:'s-rejected'};
-function stPill(pid,field,val){
-  return `<span class="status ${ST_CLS[val]||'s-none'}" onclick="cycleStatus(${pid},'${field}')">${ST_LABELS[val]||'未開始'}</span>`;
+// ─── Program status helpers ──────────────────────────────────
+const CONTACT_OPTS=['未套詞','第一次套詞','第二次套詞'];
+const REPLY_OPTS=['未回信','第一次套詞已回信','第二次套詞已回信'];
+const INTERVIEW_OPTS=['未面試','已預約面試','已面試'];
+const RESULT_CLS={pending:'badge-neutral',accept:'badge-match',reject:'badge-danger'};
+const RESULT_LABELS={pending:'Pending',accept:'Accept 🎉',reject:'Reject'};
+
+function statusBadge(val, opts, clsMap){
+  const cls = clsMap ? (clsMap[val]||'badge-neutral') : 'badge-neutral';
+  return `<span class="badge ${cls}" style="font-size:10px">${val||opts[0]}</span>`;
 }
-function cycleStatus(id,field){
-  const p=programs.find(x=>x.id===id);if(!p)return;
-  const i=ST_KEYS.indexOf(p[field]||'none');
-  p[field]=ST_KEYS[(i+1)%ST_KEYS.length];
-  save();renderPrograms();
+
+// Professor temp rows for modal
+let profRows=[];
+function addProfRow(data){
+  const row = data || {name:'',direction:'',match:'',lab:''};
+  profRows.push(row);
+  renderProfRows();
 }
+function removeProfRow(i){
+  profRows.splice(i,1);
+  renderProfRows();
+}
+function renderProfRows(){
+  const el=document.getElementById('prof-rows');if(!el)return;
+  if(!profRows.length){el.innerHTML='<div style="font-size:11px;color:var(--text3);padding:4px 0">尚無導師，點擊「+ 新增導師」</div>';return;}
+  el.innerHTML=profRows.map((r,i)=>`
+    <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;position:relative">
+      <button onclick="removeProfRow(${i})" style="position:absolute;top:6px;right:8px;background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px">×</button>
+      <div class="form-grid col2" style="gap:8px">
+        <div><label class="form-label">姓名</label><input type="text" value="${r.name||''}" oninput="profRows[${i}].name=this.value" style="padding:5px 8px;font-size:12px"></div>
+        <div><label class="form-label">匹配度</label>
+          <select oninput="profRows[${i}].match=this.value" style="padding:5px 8px;font-size:12px">
+            <option value="" ${!r.match?'selected':''}>未評估</option>
+            <option value="高" ${r.match==='高'?'selected':''}>⭐⭐⭐ 高</option>
+            <option value="中" ${r.match==='中'?'selected':''}>⭐⭐ 中</option>
+            <option value="低" ${r.match==='低'?'selected':''}>⭐ 低</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1"><label class="form-label">研究方向</label><input type="text" value="${r.direction||''}" oninput="profRows[${i}].direction=this.value" style="padding:5px 8px;font-size:12px"></div>
+        <div style="grid-column:1/-1"><label class="form-label">實驗室網站</label><input type="url" value="${r.lab||''}" oninput="profRows[${i}].lab=this.value" placeholder="https://..." style="padding:5px 8px;font-size:12px"></div>
+      </div>
+    </div>`).join('');
+}
+
+// School autocomplete
+function schoolSuggest(q){
+  const box=document.getElementById('school-suggest');
+  if(!q||q.length<1){box.style.display='none';return;}
+  const matches=schools.filter(s=>(s.name_zh||'').includes(q)||(s.name_en||'').toLowerCase().includes(q.toLowerCase())).slice(0,8);
+  if(!matches.length){box.style.display='none';return;}
+  box.style.display='block';
+  box.innerHTML=matches.map(s=>`<div onclick="selectSchool('${s.name_zh.replace(/'/g,"\'")}','${s.name_en.replace(/'/g,"\'")}'); " style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:0.5px solid var(--border)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">${s.name_zh} <span style="color:var(--text3)">${s.name_en}</span></div>`).join('');
+}
+function selectSchool(zh, en){
+  document.getElementById('p-school').value=zh+' ('+en+')';
+  document.getElementById('school-suggest').style.display='none';
+}
+document.addEventListener('click',e=>{
+  const box=document.getElementById('school-suggest');
+  if(box&&!box.contains(e.target)&&e.target.id!=='p-school') box.style.display='none';
+});
+
+
 function renderPrograms(){
   const q=(document.getElementById('prog-search')||{value:''}).value.toLowerCase();
   let list=programs.filter(p=>!q||(p.school||'').toLowerCase().includes(q)||(p.prog||'').toLowerCase().includes(q));
   const tb=document.getElementById('prog-tbody'); tb.innerHTML='';
-  if(!list.length){tb.innerHTML='<tr><td colspan="14" style="text-align:center;padding:28px;color:var(--text3)">尚無申請項目，點擊「＋ 新增申請項目」開始</td></tr>';return;}
+  if(!list.length){tb.innerHTML='<tr><td colspan="15" style="text-align:center;padding:28px;color:var(--text3)">尚無申請項目，點擊「＋ 新增申請項目」開始</td></tr>';return;}
   list.forEach(p=>{
-    const profs=(p.prof||'').split('\n').filter(x=>x.trim()).map(x=>`<div style="font-size:10px;margin-bottom:1px">${x}</div>`).join('')||'<span style="color:var(--text3);font-size:11px">—</span>';
-    const urlHtml=p.url?`<a href="${p.url}" target="_blank" style="font-size:11px">連結 ↗</a>`:'<span style="color:var(--text3);font-size:11px">—</span>';
+    const profList=(p.profs||[]);
+    const profHtml=profList.length
+      ? profList.map(pr=>`<div style="font-size:10px;line-height:1.4">${pr.name||''}${pr.match?' <span style=\"color:var(--amber)\">'+pr.match+'</span>':''}</div>`).join('')
+      : '<span style="color:var(--text3);font-size:10px">—</span>';
+    const urlHtml=p.url?`<a href="${p.url}" target="_blank" style="font-size:11px">↗</a>`:'—';
+    const contactCls=p.contact==='未套詞'?'s-none':p.contact==='第一次套詞'?'s-contacted':'s-replied';
+    const replyCls=p.reply==='未回信'?'s-none':p.reply==='第一次套詞已回信'?'s-contacted':'s-replied';
+    const interviewCls=p.interview==='未面試'?'s-none':p.interview==='已預約面試'?'s-contacted':'s-replied';
+    const resultCls={pending:'s-none',accept:'s-replied',reject:'s-rejected'}[p.result||'pending']||'s-none';
+    const resultLabel={pending:'Pending',accept:'Accept 🎉',reject:'Reject'}[p.result||'pending'];
+    const schBadge=p.scholarship?`<span class="badge badge-info" style="font-size:9px">${p.scholarship}</span>`:'—';
     const tr=document.createElement('tr');
     tr.innerHTML=`
-      <td><div style="font-weight:600;font-size:12px">${p.school||''}</div><div style="font-size:10px;color:var(--text3)">${p.prog||''}</div></td>
-      <td>${urlHtml}</td>
-      <td style="font-size:12px">${p.ielts||'—'}</td>
-      <td style="font-size:12px">${p.toefl||'—'}</td>
-      <td style="font-size:12px">${p.gre||'—'}</td>
+      <td style="overflow:hidden"><div style="font-weight:600;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.school||''}</div><div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.prog||''}</div></td>
+      <td style="text-align:center">${urlHtml}</td>
+      <td style="font-size:11px;text-align:center">${p.ielts||'—'}</td>
+      <td style="font-size:11px;text-align:center">${p.toefl||'—'}</td>
+      <td style="font-size:11px;text-align:center">${p.gre||'—'}</td>
       <td>${dlHtml(p.deadline)}</td>
-      <td style="font-size:10px;color:var(--text2);max-width:120px">${p.funding||'—'}</td>
-      <td>${profs}</td>
-      <td>${stPill(p.id,'contact',p.contact||'none')}</td>
-      <td>${stPill(p.id,'reply',p.reply||'none')}</td>
-      <td>${stPill(p.id,'interview',p.interview||'none')}</td>
+      <td>${schBadge}</td>
+      <td><span class="status ${contactCls}" style="font-size:9px;white-space:normal;line-height:1.3">${p.contact||'未套詞'}${p.contactDate?' '+p.contactDate:''}</span></td>
+      <td><span class="status ${replyCls}" style="font-size:9px;white-space:normal;line-height:1.3">${p.reply||'未回信'}${p.replyDate?' '+p.replyDate:''}</span></td>
+      <td><span class="status ${interviewCls}" style="font-size:9px;white-space:normal;line-height:1.3">${p.interview||'未面試'}${p.interviewDate?' '+p.interviewDate:''}</span></td>
+      <td><span class="status ${resultCls}" style="font-size:10px">${resultLabel}</span></td>
       <td>${tierHtml(p.tier)}</td>
-      <td><span class="editable" contenteditable="true" onblur="updProg(${p.id},'note',this.innerText)" style="font-size:11px;color:var(--text2);min-width:50px;display:inline-block">${p.note||''}</span></td>
-      <td><button class="del-btn" onclick="delProg(${p.id})">×</button></td>`;
+      <td>${profHtml}</td>
+      <td style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis">${p.note||''}</td>
+      <td style="white-space:nowrap">
+        <button class="btn sm" onclick="openProgModal(${p.id})" style="padding:3px 8px;font-size:10px">編輯</button>
+        <button class="del-btn" onclick="delProg(${p.id})">×</button>
+      </td>`;
     tb.appendChild(tr);
   });
 }
 function updProg(id,k,v){const p=programs.find(x=>x.id===id);if(p){p[k]=v;save();}}
 function delProg(id){if(!confirm('確定刪除？'))return;programs=programs.filter(p=>p.id!==id);save();renderPrograms();}
-function openProgModal(){
-  ['p-school','p-prog','p-url','p-ielts','p-toefl','p-gre','p-funding','p-prof','p-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('p-deadline').value='';
-  document.getElementById('p-tier').value='';
+
+let editingProgId=-1;
+function openProgModal(id){
+  editingProgId=id;
+  profRows=[];
+  const isNew=(id===-1);
+  document.getElementById('prog-modal-title').textContent=isNew?'新增申請項目':'編輯申請項目';
+  const p=isNew?null:programs.find(x=>x.id===id);
+  ['p-school','p-prog','p-url','p-ielts','p-toefl','p-gre','p-note'].forEach(fid=>{
+    const el=document.getElementById(fid);
+    const key=fid.replace('p-','');
+    if(el) el.value=p?(p[key]||''):'';
+  });
+  document.getElementById('p-deadline').value=p?(p.deadline||''):'';
+  document.getElementById('p-tier').value=p?(p.tier||''):'';
+  document.getElementById('p-scholarship').value=p?(p.scholarship||''):'';
+  document.getElementById('p-contact').value=p?(p.contact||'未套詞'):'未套詞';
+  document.getElementById('p-contact-date').value=p?(p.contactDate||''):'';
+  document.getElementById('p-reply').value=p?(p.reply||'未回信'):'未回信';
+  document.getElementById('p-reply-date').value=p?(p.replyDate||''):'';
+  document.getElementById('p-interview').value=p?(p.interview||'未面試'):'未面試';
+  document.getElementById('p-interview-date').value=p?(p.interviewDate||''):'';
+  document.getElementById('p-result').value=p?(p.result||'pending'):'pending';
+  document.getElementById('school-suggest').style.display='none';
+  if(p&&p.profs) p.profs.forEach(pr=>profRows.push({...pr}));
+  renderProfRows();
   document.getElementById('modal-program').classList.add('open');
 }
+
 function saveProgram(){
   const school=document.getElementById('p-school').value.trim();
   if(!school){alert('請輸入學校名稱');return;}
-  programs.push({id:Date.now(),school,prog:document.getElementById('p-prog').value.trim(),url:document.getElementById('p-url').value.trim(),ielts:document.getElementById('p-ielts').value.trim(),toefl:document.getElementById('p-toefl').value.trim(),gre:document.getElementById('p-gre').value.trim(),deadline:document.getElementById('p-deadline').value,funding:document.getElementById('p-funding').value.trim(),prof:document.getElementById('p-prof').value.trim(),tier:document.getElementById('p-tier').value,note:document.getElementById('p-note').value.trim(),contact:'none',reply:'none',interview:'none'});
+  const data={
+    school, prog:document.getElementById('p-prog').value.trim(),
+    url:document.getElementById('p-url').value.trim(),
+    ielts:document.getElementById('p-ielts').value.trim(),
+    toefl:document.getElementById('p-toefl').value.trim(),
+    gre:document.getElementById('p-gre').value.trim(),
+    deadline:document.getElementById('p-deadline').value,
+    tier:document.getElementById('p-tier').value,
+    scholarship:document.getElementById('p-scholarship').value,
+    note:document.getElementById('p-note').value.trim(),
+    contact:document.getElementById('p-contact').value,
+    contactDate:document.getElementById('p-contact-date').value,
+    reply:document.getElementById('p-reply').value,
+    replyDate:document.getElementById('p-reply-date').value,
+    interview:document.getElementById('p-interview').value,
+    interviewDate:document.getElementById('p-interview-date').value,
+    result:document.getElementById('p-result').value,
+    profs:profRows.map(r=>({...r}))
+  };
+  if(editingProgId===-1){
+    data.id=Date.now();
+    programs.push(data);
+  } else {
+    const idx=programs.findIndex(x=>x.id===editingProgId);
+    if(idx>=0) programs[idx]={...programs[idx],...data};
+  }
   save();closeModal('modal-program');renderPrograms();
 }
 
